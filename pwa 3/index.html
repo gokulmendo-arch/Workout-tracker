@@ -239,6 +239,23 @@ button{cursor:pointer;font-family:inherit;font-size:13px;border-radius:8px;trans
 .pl-sets-lbl{font-size:11px;color:#888780;text-align:center;margin-top:2px;}
 .pl-empty{text-align:center;padding:36px 20px;color:#888780;border:2px dashed #e8e6e0;border-radius:12px;margin-bottom:12px;}
 .pl-copy-bar{background:#f2f7fe;border:1px solid #aac8f0;border-radius:10px;padding:11px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:#0d3d7a;}
+/* ── EXERCISE GIF VIEWER ── */
+.gif-thumb{width:40px;height:40px;border-radius:8px;object-fit:cover;cursor:pointer;border:1px solid #e8e6e0;flex-shrink:0;background:#f0ede8;}
+.gif-thumb:hover{opacity:0.85;border-color:#aac8f0;}
+.gif-loading{width:40px;height:40px;border-radius:8px;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;animation:pulse 1.5s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.gif-viewer-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:400;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;}
+.gif-viewer-wrap.open{display:flex;}
+.gif-viewer-img{max-width:100%;max-height:55vh;border-radius:12px;object-fit:contain;}
+.gif-viewer-title{color:#fff;font-size:17px;font-weight:700;text-align:center;}
+.gif-viewer-cat{font-size:12px;padding:3px 12px;border-radius:20px;font-weight:600;margin-top:-6px;}
+.gif-viewer-notes{color:#aaa;font-size:13px;text-align:center;max-width:340px;}
+.gif-viewer-steps{background:rgba(255,255,255,0.08);border-radius:10px;padding:14px 16px;max-width:380px;width:100%;max-height:160px;overflow-y:auto;}
+.gif-viewer-steps p{color:#ddd;font-size:12px;line-height:1.6;}
+.gif-viewer-close{color:#fff;background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:10px 28px;font-size:14px;cursor:pointer;margin-top:4px;}
+.gif-viewer-close:hover{background:rgba(255,255,255,0.25);}
+.ql-ex-gif{width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-bottom:12px;cursor:pointer;}
+.ql-ex-gif-loading{width:100%;height:120px;background:#f0ede8;border-radius:10px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#888780;animation:pulse 1.5s ease-in-out infinite;}
 </style>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -256,6 +273,7 @@ button{cursor:pointer;font-family:inherit;font-size:13px;border-radius:8px;trans
     <button class="nav-btn" onclick="go('exercises',this)">Exercises</button>
     <button class="nav-btn" onclick="go('history',this)">History</button>
     <button class="nav-btn" onclick="go('glowup',this)">Glow Up ✦</button>
+    <button class="nav-btn" onclick="go('settings',this)">⚙ Settings</button>
   </nav>
   <div id="today" class="section active"></div>
   <div id="quicklog" class="section"></div>
@@ -264,9 +282,35 @@ button{cursor:pointer;font-family:inherit;font-size:13px;border-radius:8px;trans
   <div id="exercises" class="section"></div>
   <div id="history" class="section"></div>
   <div id="glowup" class="section"></div>
+  <div id="settings" class="section"></div>
 </div>
 
-<!-- Exercise modal -->
+<!-- GIF Exercise Viewer -->
+<div class="gif-viewer-wrap" id="gif-viewer" onclick="closeGifViewer()">
+  <div class="gif-viewer-title" id="gv-title"></div>
+  <span class="gif-viewer-cat" id="gv-cat"></span>
+  <img class="gif-viewer-img" id="gv-img" src="" alt=""/>
+  <div class="gif-viewer-notes" id="gv-notes"></div>
+  <div class="gif-viewer-steps" id="gv-steps" style="display:none;"></div>
+  <button class="gif-viewer-close" onclick="closeGifViewer()">Close</button>
+</div>
+
+<!-- Import Data Modal -->
+<div class="modal-wrap" id="import-modal">
+  <div class="modal" style="max-width:500px;">
+    <h3>Import Data from Old App</h3>
+    <p style="font-size:13px;color:#888780;margin-bottom:14px;">Paste the data you copied from your old app below. This will merge with your existing data — nothing will be deleted.</p>
+    <div class="frow">
+      <div class="flabel">Paste your data here</div>
+      <textarea id="import-json" rows="8" style="font-size:12px;font-family:monospace;resize:vertical;" placeholder='{"wt_ex":"...","wt_sch":"...","wt_logs":"..."}'></textarea>
+    </div>
+    <div id="import-feedback" style="font-size:12px;min-height:18px;margin-top:6px;"></div>
+    <div class="mactions">
+      <button class="btn-out" onclick="closeM('import-modal')">Cancel</button>
+      <button class="btn" onclick="doImportData()">Import & Merge</button>
+    </div>
+  </div>
+</div>
 <div class="modal-wrap" id="ex-modal">
   <div class="modal" style="max-width:420px;">
     <h3 id="ex-mtitle">Add Exercise</h3>
@@ -340,19 +384,142 @@ const CL={chest:'Chest',back:'Back',legs:'Legs',shoulders:'Shoulders',biceps:'Bi
 const DEF_SCH={Monday:['chest','triceps'],Tuesday:['back','biceps'],Wednesday:['legs'],Thursday:['shoulders','triceps'],Friday:['back','chest'],Saturday:['cardio','core'],Sunday:[]};
 
 const DEF_EX=[
-  {id:'e1',n:'Bench Press',c:'chest',t:'Barbell, flat bench'},{id:'e2',n:'Incline Dumbbell Press',c:'chest',t:''},
-  {id:'e3',n:'Cable Fly',c:'chest',t:''},{id:'e4',n:'Pec Deck',c:'chest',t:'Machine'},
-  {id:'e5',n:'Tricep Pushdown',c:'triceps',t:'Cable'},{id:'e6',n:'Skull Crushers',c:'triceps',t:'EZ bar'},
-  {id:'e7',n:'Overhead Tricep Extension',c:'triceps',t:'Dumbbell'},
-  {id:'e8',n:'Barbell Row',c:'back',t:''},{id:'e9',n:'Pull Up',c:'back',t:'Bodyweight'},
-  {id:'e10',n:'Lat Pulldown',c:'back',t:'Cable'},{id:'e11',n:'Seated Cable Row',c:'back',t:''},
-  {id:'e12',n:'Bicep Curl',c:'biceps',t:'Dumbbell'},{id:'e13',n:'Hammer Curl',c:'biceps',t:''},
-  {id:'e14',n:'Barbell Curl',c:'biceps',t:''},{id:'e15',n:'Squat',c:'legs',t:'Barbell'},
-  {id:'e16',n:'Romanian Deadlift',c:'legs',t:''},{id:'e17',n:'Leg Press',c:'legs',t:'Machine'},
-  {id:'e18',n:'Leg Curl',c:'legs',t:'Machine'},{id:'e19',n:'Overhead Press',c:'shoulders',t:'Barbell'},
-  {id:'e20',n:'Lateral Raise',c:'shoulders',t:'Dumbbell'},{id:'e21',n:'Face Pull',c:'shoulders',t:'Cable'},
-  {id:'e22',n:'Plank',c:'core',t:''},{id:'e23',n:'Ab Crunch',c:'core',t:''},
-  {id:'e24',n:'Treadmill Run',c:'cardio',t:''},{id:'e25',n:'Cycling',c:'cardio',t:''},
+  // ── CHEST ──
+  {id:'e1',n:'Bench Press',c:'chest',t:'Barbell, flat bench'},
+  {id:'e2',n:'Incline Bench Press',c:'chest',t:'Barbell'},
+  {id:'e3',n:'Decline Bench Press',c:'chest',t:'Barbell'},
+  {id:'e4',n:'Incline Dumbbell Press',c:'chest',t:'Dumbbells'},
+  {id:'e5',n:'Flat Dumbbell Press',c:'chest',t:'Dumbbells'},
+  {id:'e6',n:'Decline Dumbbell Press',c:'chest',t:'Dumbbells'},
+  {id:'e7',n:'Cable Fly',c:'chest',t:'Cable crossover'},
+  {id:'e8',n:'Incline Cable Fly',c:'chest',t:'Low cables'},
+  {id:'e9',n:'Pec Deck',c:'chest',t:'Machine'},
+  {id:'e10',n:'Dumbbell Fly',c:'chest',t:'Flat bench'},
+  {id:'e11',n:'Push Up',c:'chest',t:'Bodyweight'},
+  {id:'e12',n:'Wide Grip Push Up',c:'chest',t:'Bodyweight'},
+  {id:'e13',n:'Dips',c:'chest',t:'Chest variation, forward lean'},
+  {id:'e14',n:'Landmine Press',c:'chest',t:'Barbell landmine'},
+  {id:'e15',n:'Smith Machine Bench Press',c:'chest',t:'Smith machine'},
+
+  // ── BACK ──
+  {id:'e16',n:'Barbell Row',c:'back',t:'Bent over, overhand grip'},
+  {id:'e17',n:'Pendlay Row',c:'back',t:'Barbell, from floor'},
+  {id:'e18',n:'Underhand Barbell Row',c:'back',t:'Supinated grip'},
+  {id:'e19',n:'Dumbbell Row',c:'back',t:'Single arm, bench supported'},
+  {id:'e20',n:'Pull Up',c:'back',t:'Bodyweight, overhand'},
+  {id:'e21',n:'Chin Up',c:'back',t:'Bodyweight, underhand'},
+  {id:'e22',n:'Lat Pulldown',c:'back',t:'Wide grip, cable'},
+  {id:'e23',n:'Close Grip Lat Pulldown',c:'back',t:'Narrow grip, cable'},
+  {id:'e24',n:'Seated Cable Row',c:'back',t:'Close grip attachment'},
+  {id:'e25',n:'Wide Grip Cable Row',c:'back',t:'Bar attachment'},
+  {id:'e26',n:'T-Bar Row',c:'back',t:'Landmine or T-bar machine'},
+  {id:'e27',n:'Chest Supported Row',c:'back',t:'Incline bench, dumbbells'},
+  {id:'e28',n:'Straight Arm Pulldown',c:'back',t:'Cable, rope or bar'},
+  {id:'e29',n:'Deadlift',c:'back',t:'Barbell, conventional'},
+  {id:'e30',n:'Rack Pull',c:'back',t:'Barbell, from knee height'},
+  {id:'e31',n:'Face Pull',c:'back',t:'Cable, rope attachment'},
+  {id:'e32',n:'Hyperextension',c:'back',t:'Roman chair'},
+  {id:'e33',n:'Good Morning',c:'back',t:'Barbell, hip hinge'},
+
+  // ── LEGS ──
+  {id:'e34',n:'Barbell Back Squat',c:'legs',t:'High bar or low bar'},
+  {id:'e35',n:'Front Squat',c:'legs',t:'Barbell, front rack'},
+  {id:'e36',n:'Goblet Squat',c:'legs',t:'Dumbbell or kettlebell'},
+  {id:'e37',n:'Romanian Deadlift',c:'legs',t:'Barbell or dumbbells'},
+  {id:'e38',n:'Stiff Leg Deadlift',c:'legs',t:'Barbell'},
+  {id:'e39',n:'Leg Press',c:'legs',t:'Machine'},
+  {id:'e40',n:'Hack Squat',c:'legs',t:'Machine'},
+  {id:'e41',n:'Leg Extension',c:'legs',t:'Machine'},
+  {id:'e42',n:'Leg Curl',c:'legs',t:'Machine, lying'},
+  {id:'e43',n:'Seated Leg Curl',c:'legs',t:'Machine'},
+  {id:'e44',n:'Bulgarian Split Squat',c:'legs',t:'Dumbbells or barbell'},
+  {id:'e45',n:'Walking Lunges',c:'legs',t:'Dumbbells or barbell'},
+  {id:'e46',n:'Reverse Lunge',c:'legs',t:'Dumbbells'},
+  {id:'e47',n:'Hip Thrust',c:'legs',t:'Barbell, bench supported'},
+  {id:'e48',n:'Glute Bridge',c:'legs',t:'Barbell or bodyweight'},
+  {id:'e49',n:'Standing Calf Raise',c:'legs',t:'Machine or smith'},
+  {id:'e50',n:'Seated Calf Raise',c:'legs',t:'Machine'},
+  {id:'e51',n:'Step Up',c:'legs',t:'Dumbbells, box'},
+  {id:'e52',n:'Box Jump',c:'legs',t:'Plyometric'},
+  {id:'e53',n:'Sumo Deadlift',c:'legs',t:'Barbell, wide stance'},
+  {id:'e54',n:'Smith Machine Squat',c:'legs',t:'Smith machine'},
+
+  // ── SHOULDERS ──
+  {id:'e55',n:'Overhead Press',c:'shoulders',t:'Barbell, standing'},
+  {id:'e56',n:'Seated Dumbbell Press',c:'shoulders',t:'Dumbbells'},
+  {id:'e57',n:'Arnold Press',c:'shoulders',t:'Dumbbells, rotating'},
+  {id:'e58',n:'Lateral Raise',c:'shoulders',t:'Dumbbells'},
+  {id:'e59',n:'Cable Lateral Raise',c:'shoulders',t:'Single cable, low'},
+  {id:'e60',n:'Front Raise',c:'shoulders',t:'Dumbbell or barbell plate'},
+  {id:'e61',n:'Rear Delt Fly',c:'shoulders',t:'Dumbbells, bent over'},
+  {id:'e62',n:'Rear Delt Cable Fly',c:'shoulders',t:'High cables, crossing'},
+  {id:'e63',n:'Upright Row',c:'shoulders',t:'Barbell or cable'},
+  {id:'e64',n:'Machine Shoulder Press',c:'shoulders',t:'Machine'},
+  {id:'e65',n:'Cable Face Pull',c:'shoulders',t:'Rope attachment, high cable'},
+  {id:'e66',n:'Shrugs',c:'shoulders',t:'Barbell or dumbbells'},
+  {id:'e67',n:'Push Press',c:'shoulders',t:'Barbell, leg drive'},
+  {id:'e68',n:'Landmine Lateral Raise',c:'shoulders',t:'Barbell landmine'},
+
+  // ── BICEPS ──
+  {id:'e69',n:'Barbell Curl',c:'biceps',t:'EZ bar or straight bar'},
+  {id:'e70',n:'Dumbbell Curl',c:'biceps',t:'Alternating or both'},
+  {id:'e71',n:'Hammer Curl',c:'biceps',t:'Neutral grip'},
+  {id:'e72',n:'Incline Dumbbell Curl',c:'biceps',t:'Incline bench'},
+  {id:'e73',n:'Concentration Curl',c:'biceps',t:'Single arm, seated'},
+  {id:'e74',n:'Preacher Curl',c:'biceps',t:'EZ bar or dumbbell'},
+  {id:'e75',n:'Cable Curl',c:'biceps',t:'Low cable, bar or rope'},
+  {id:'e76',n:'Rope Hammer Curl',c:'biceps',t:'Cable, rope attachment'},
+  {id:'e77',n:'Cross Body Hammer Curl',c:'biceps',t:'Dumbbell, across body'},
+  {id:'e78',n:'Reverse Curl',c:'biceps',t:'Overhand grip, barbell'},
+  {id:'e79',n:'Zottman Curl',c:'biceps',t:'Dumbbell, rotating wrist'},
+  {id:'e80',n:'Spider Curl',c:'biceps',t:'Incline bench, face down'},
+
+  // ── TRICEPS ──
+  {id:'e81',n:'Tricep Pushdown',c:'triceps',t:'Cable, bar attachment'},
+  {id:'e82',n:'Rope Pushdown',c:'triceps',t:'Cable, rope attachment'},
+  {id:'e83',n:'Skull Crushers',c:'triceps',t:'EZ bar, flat bench'},
+  {id:'e84',n:'Overhead Tricep Extension',c:'triceps',t:'Dumbbell, single or both'},
+  {id:'e85',n:'Cable Overhead Extension',c:'triceps',t:'Rope, high cable'},
+  {id:'e86',n:'Dips',c:'triceps',t:'Upright, bodyweight or weighted'},
+  {id:'e87',n:'Close Grip Bench Press',c:'triceps',t:'Barbell, narrow grip'},
+  {id:'e88',n:'Tricep Kickback',c:'triceps',t:'Dumbbell, bent over'},
+  {id:'e89',n:'Single Arm Pushdown',c:'triceps',t:'Cable, single arm'},
+  {id:'e90',n:'Diamond Push Up',c:'triceps',t:'Bodyweight'},
+  {id:'e91',n:'JM Press',c:'triceps',t:'Barbell, hybrid movement'},
+
+  // ── CORE ──
+  {id:'e92',n:'Plank',c:'core',t:'Forearm or hands'},
+  {id:'e93',n:'Side Plank',c:'core',t:'Each side'},
+  {id:'e94',n:'Ab Crunch',c:'core',t:'Bodyweight or cable'},
+  {id:'e95',n:'Cable Crunch',c:'core',t:'Kneeling, rope'},
+  {id:'e96',n:'Hanging Leg Raise',c:'core',t:'Bar, legs straight'},
+  {id:'e97',n:'Hanging Knee Raise',c:'core',t:'Bar, knees bent'},
+  {id:'e98',n:'Decline Sit Up',c:'core',t:'Decline bench'},
+  {id:'e99',n:'Russian Twist',c:'core',t:'Bodyweight or weight plate'},
+  {id:'e100',n:'Bicycle Crunch',c:'core',t:'Bodyweight'},
+  {id:'e101',n:'Woodchop',c:'core',t:'Cable or dumbbell'},
+  {id:'e102',n:'Dead Bug',c:'core',t:'Bodyweight'},
+  {id:'e103',n:'Ab Wheel Rollout',c:'core',t:'Ab wheel'},
+  {id:'e104',n:'V-Up',c:'core',t:'Bodyweight'},
+  {id:'e105',n:'Dragon Flag',c:'core',t:'Bench, advanced'},
+  {id:'e106',n:'Pallof Press',c:'core',t:'Cable, anti-rotation'},
+  {id:'e107',n:'Hollow Hold',c:'core',t:'Bodyweight'},
+
+  // ── CARDIO ──
+  {id:'e108',n:'Treadmill Run',c:'cardio',t:'Steady state or intervals'},
+  {id:'e109',n:'Cycling',c:'cardio',t:'Stationary bike'},
+  {id:'e110',n:'Rowing Machine',c:'cardio',t:'Concept2 or similar'},
+  {id:'e111',n:'Stair Climber',c:'cardio',t:'Machine'},
+  {id:'e112',n:'Elliptical',c:'cardio',t:'Machine'},
+  {id:'e113',n:'Jump Rope',c:'cardio',t:'Single or double under'},
+  {id:'e114',n:'Battle Ropes',c:'cardio',t:'Alternating or simultaneous'},
+  {id:'e115',n:'Sled Push',c:'cardio',t:'Loaded sled'},
+  {id:'e116',n:'Burpees',c:'cardio',t:'Bodyweight'},
+  {id:'e117',n:'Box Step Up',c:'cardio',t:'Cardio variation, fast pace'},
+  {id:'e118',n:'Sprint Intervals',c:'cardio',t:'Treadmill or track'},
+  {id:'e119',n:'Swimming',c:'cardio',t:'Laps'},
+  {id:'e120',n:'Assault Bike',c:'cardio',t:'Air bike'},
+  {id:'e121',n:'Ski Erg',c:'cardio',t:'Machine'},
 ];
 
 let S={ex:[],sch:{},logs:[],cf:'all',editId:null,sets:[],se:{},hf:'all'};
@@ -361,7 +528,23 @@ let S={ex:[],sch:{},logs:[],cf:'all',editId:null,sets:[],se:{},hf:'all'};
 let QL={step:1, day:null, cat:null, date:null, sessionSets:{}, openBlocks:{}};
 
 function load(){
-  try{S.ex=JSON.parse(localStorage.getItem('wt_ex'))||DEF_EX;S.sch=JSON.parse(localStorage.getItem('wt_sch'))||DEF_SCH;S.logs=JSON.parse(localStorage.getItem('wt_logs'))||[];}
+  try{
+    S.ex=JSON.parse(localStorage.getItem('wt_ex'))||DEF_EX;
+    S.sch=JSON.parse(localStorage.getItem('wt_sch'))||DEF_SCH;
+    S.logs=JSON.parse(localStorage.getItem('wt_logs'))||[];
+
+    // Merge any new default exercises not already in the library
+    const existingNames=new Set(S.ex.map(e=>(e.n||'').toLowerCase()));
+    let added=0;
+    DEF_EX.forEach(def=>{
+      if(!existingNames.has(def.n.toLowerCase())){
+        S.ex.push({...def, id:'def_'+def.id+'_'+Date.now()+added});
+        existingNames.add(def.n.toLowerCase());
+        added++;
+      }
+    });
+    if(added>0) persist(); // save merged list
+  }
   catch(e){S.ex=DEF_EX;S.sch=DEF_SCH;S.logs=[];}
 }
 function persist(){try{localStorage.setItem('wt_ex',JSON.stringify(S.ex));localStorage.setItem('wt_sch',JSON.stringify(S.sch));localStorage.setItem('wt_logs',JSON.stringify(S.logs));}catch(e){}}
@@ -381,7 +564,7 @@ function go(id,btn){
   // hide save bar when not in quicklog
   const sb=document.getElementById('save-bar');
   if(sb) sb.style.display = id==='quicklog'&&QL.step===3 ? 'flex':'none';
-  ({today:rToday,quicklog:rQL,preload:rPreload,schedule:rSch,exercises:rEx,history:rHist,glowup:rGlowUp})[id]();
+  ({today:rToday,quicklog:rQL,preload:rPreload,schedule:rSch,exercises:rEx,history:rHist,glowup:rGlowUp,settings:rSettings})[id]();
 }
 
 // ── TODAY ──
@@ -399,23 +582,31 @@ function rToday(){
   let exCard='';
   if(cats.length){
     exCard=exs.length
-      ?`<div class="card"><h3>Today's exercises</h3>${exs.map(e=>`
-        <div class="ex-row">
+      ?`<div class="card"><h3>Today's exercises</h3>${exs.map(e=>{
+        const cacheKey=e.n.toLowerCase().trim();
+        const cached=loadGifCache()[cacheKey];
+        let thumb;
+        if(e.img){
+          thumb=`<img class="ex-photo-thumb" src="${e.img}" alt="${e.n}" onclick="viewExercise('${e.id}')" title="Tap to view"/>`;
+        } else if(cached&&cached.gifUrl){
+          thumb=`<img class="gif-thumb" src="${cached.gifUrl}" alt="${e.n}" onclick="viewExercise('${e.id}')" title="Tap to view GIF"/>`;
+        } else {
+          thumb=`<div style="width:40px;height:40px;border-radius:8px;background:#e3edf9;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;cursor:pointer;border:1px solid #aac8f0;" onclick="viewExercise('${e.id}')" title="Tap to load GIF">▶</div>`;
+        }
+        return `<div class="ex-row">
           <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-            ${e.img
-              ?`<img class="ex-photo-thumb" src="${e.img}" alt="${e.n}" onclick="viewPhoto('${e.id}')" title="Tap to see photo"/>`
-              :`<div style="width:40px;height:40px;border-radius:8px;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;cursor:pointer;border:1px dashed #d8d6d0;" onclick="editEx('${e.id}')" title="Add a photo in Exercises tab">📷</div>`
-            }
+            ${thumb}
             <div style="min-width:0;">
               <div class="ex-name">${e.n}</div>
-              <div class="ex-meta">${e.t||''}&nbsp;${e.img?`<span style="color:#aac8f0;font-size:11px;">· tap photo to view</span>`:''}</div>
+              <div class="ex-meta">${e.t||''}&nbsp;<span style="color:#aac8f0;font-size:11px;">· tap to see how</span></div>
             </div>
           </div>
           <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
             <span class="badge badge-${e.c}">${CL[e.c]}</span>
             <button class="btn-out btn-sm" onclick="startQL('${dn()}','${e.c}','${tiso()}')">Quick Log ↗</button>
           </div>
-        </div>`).join('')}</div>`
+        </div>`;
+      }).join('')}</div>`
       :`<div class="card"><div class="empty">No exercises for today's muscle groups yet.</div></div>`;
   }
   document.getElementById('today').innerHTML=banner
@@ -582,9 +773,19 @@ function renderExBlock(ex, plItem=null){
     prevHtml=`<div class="prev-best">📅 Last session (${prevDate}): ${prev.sets.map(s=>`${s.w}kg × ${s.r}`).join(' · ')}</div>`;
   }
 
-  const photoHtml=ex.img
-    ?`<img class="ql-ex-photo" src="${ex.img}" alt="${ex.n}" onclick="viewPhoto('${ex.id}')" title="Tap to view full size"/>`
-    :'';
+  const cache=loadGifCache();
+  const cacheKey=ex.n.toLowerCase().trim();
+  const cached=cache[cacheKey];
+
+  // Show GIF or uploaded photo in expanded block
+  let mediaHtml='';
+  if(ex.img){
+    mediaHtml=`<img class="ql-ex-photo" src="${ex.img}" alt="${ex.n}" onclick="viewExercise('${ex.id}')" title="Tap to view full size"/>`;
+  } else if(cached&&cached.gifUrl){
+    mediaHtml=`<img class="ql-ex-gif" src="${cached.gifUrl}" alt="${ex.n}" onclick="viewExercise('${ex.id}')" title="Tap for details"/>`;
+  } else {
+    mediaHtml=`<div class="ql-ex-gif-loading" onclick="viewExercise('${ex.id}')" style="cursor:pointer;">▶ Tap to load exercise GIF</div>`;
+  }
 
   const targetW=plItem&&plItem.targetWeight?plItem.targetWeight:'';
   const targetR=plItem&&plItem.targetReps?plItem.targetReps:'';
@@ -619,7 +820,7 @@ function renderExBlock(ex, plItem=null){
       </div>
     </div>
     <div class="ql-ex-body ${isOpen?'open':''}" id="exbody-${ex.id}">
-      ${photoHtml}
+      ${mediaHtml}
       ${prevHtml}
       <div class="set-header-row">
         <div class="set-col-lbl" style="text-align:center;">Set</div>
@@ -1003,13 +1204,25 @@ function rExList(){
   const q=(document.getElementById('ex-q')||{}).value||'';
   const list=S.ex.filter(e=>(S.cf==='all'||e.c===S.cf)&&(!q||e.n.toLowerCase().includes(q.toLowerCase())));
   const el=document.getElementById('ex-list');if(!el)return;
-  el.innerHTML=list.length?list.map(e=>`
+  const cache=loadGifCache();
+  el.innerHTML=list.length?list.map(e=>{
+    const cacheKey=e.n.toLowerCase().trim();
+    const cached=cache[cacheKey];
+    let thumb;
+    if(e.img){
+      // User uploaded photo takes priority
+      thumb=`<img class="ex-photo-thumb" src="${e.img}" alt="${e.n}" onclick="viewExercise('${e.id}')" title="Tap to view"/>`;
+    } else if(cached&&cached.gifUrl){
+      // Cached GIF thumbnail
+      thumb=`<img class="gif-thumb" src="${cached.gifUrl}" alt="${e.n}" onclick="viewExercise('${e.id}')" title="Tap to view exercise GIF"/>`;
+    } else {
+      // No image yet — show play button to fetch
+      thumb=`<div style="width:40px;height:40px;border-radius:8px;background:#e3edf9;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;cursor:pointer;border:1px solid #aac8f0;" onclick="viewExercise('${e.id}')" title="Tap to load exercise GIF">▶</div>`;
+    }
+    return `
     <div class="ex-row">
       <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
-        ${e.img
-          ?`<img class="ex-photo-thumb" src="${e.img}" alt="${e.n}" onclick="viewPhoto('${e.id}')"/>`
-          :`<div style="width:40px;height:40px;border-radius:8px;background:#f0ede8;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;cursor:pointer;" onclick="editEx('${e.id}')">📷</div>`
-        }
+        ${thumb}
         <div style="min-width:0;">
           <div class="ex-name">${e.n}</div>
           <div class="ex-meta">${e.t||'&nbsp;'}</div>
@@ -1017,10 +1230,12 @@ function rExList(){
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
         <span class="badge badge-${e.c}">${CL[e.c]}</span>
+        <button class="btn-out btn-sm" onclick="viewExercise('${e.id}')">▶ View</button>
         <button class="btn-out btn-sm" onclick="editEx('${e.id}')">Edit</button>
         <button class="btn-red" onclick="delEx('${e.id}')">×</button>
       </div>
-    </div>`).join(''):'<div class="empty">No exercises found.</div>';
+    </div>`;
+  }).join(''):'<div class="empty">No exercises found.</div>';
 }
 
 // Temp storage for photo being edited in modal
@@ -1095,14 +1310,301 @@ function delEx(id){
   S.ex=S.ex.filter(e=>e.id!==id);persist();rExList();
 }
 
-function viewPhoto(exId){
-  const e=S.ex.find(x=>x.id===exId);if(!e||!e.img)return;
-  document.getElementById('pv-title').textContent=e.n;
-  document.getElementById('pv-img').src=e.img;
-  document.getElementById('pv-notes').textContent=e.t||'';
-  document.getElementById('photo-viewer').classList.add('open');
+// ── EXERCISE GIF ENGINE ──
+// Cache: localStorage key 'wt_gif_cache' = { exerciseName: {gifUrl, instructions} }
+function loadGifCache(){try{return JSON.parse(localStorage.getItem('wt_gif_cache')||'{}');}catch(e){return{};}}
+function saveGifCache(cache){try{localStorage.setItem('wt_gif_cache',JSON.stringify(cache));}catch(e){}}
+
+// Map our exercise names to ExerciseDB body part + search terms
+const EX_SEARCH_MAP={
+  // Chest
+  'Bench Press':'barbell bench press',
+  'Incline Bench Press':'incline barbell bench press',
+  'Decline Bench Press':'decline barbell bench press',
+  'Incline Dumbbell Press':'incline dumbbell press',
+  'Flat Dumbbell Press':'dumbbell bench press',
+  'Decline Dumbbell Press':'decline dumbbell press',
+  'Cable Fly':'cable crossover',
+  'Incline Cable Fly':'incline cable fly',
+  'Pec Deck':'pec deck',
+  'Dumbbell Fly':'dumbbell fly',
+  'Push Up':'push-up',
+  'Wide Grip Push Up':'wide-grip push-up',
+  'Dips':'chest dip',
+  'Landmine Press':'landmine press',
+  'Smith Machine Bench Press':'smith machine bench press',
+  // Back
+  'Barbell Row':'barbell bent over row',
+  'Pendlay Row':'pendlay row',
+  'Underhand Barbell Row':'barbell reverse grip bent over row',
+  'Dumbbell Row':'dumbbell bent over row',
+  'Pull Up':'pull-up',
+  'Chin Up':'chin-up',
+  'Lat Pulldown':'cable lat pulldown',
+  'Close Grip Lat Pulldown':'close grip lat pulldown',
+  'Seated Cable Row':'cable seated row',
+  'Wide Grip Cable Row':'cable wide grip seated row',
+  'T-Bar Row':'t bar row',
+  'Chest Supported Row':'chest supported dumbbell row',
+  'Straight Arm Pulldown':'cable straight arm pulldown',
+  'Deadlift':'barbell deadlift',
+  'Rack Pull':'rack pull',
+  'Face Pull':'cable face pull',
+  'Hyperextension':'hyperextension',
+  'Good Morning':'barbell good morning',
+  // Legs
+  'Barbell Back Squat':'barbell squat',
+  'Front Squat':'barbell front squat',
+  'Goblet Squat':'goblet squat',
+  'Romanian Deadlift':'romanian deadlift',
+  'Stiff Leg Deadlift':'stiff leg deadlift',
+  'Leg Press':'leg press',
+  'Hack Squat':'hack squat',
+  'Leg Extension':'leg extension',
+  'Leg Curl':'lying leg curl',
+  'Seated Leg Curl':'seated leg curl',
+  'Bulgarian Split Squat':'bulgarian split squat',
+  'Walking Lunges':'dumbbell lunge',
+  'Reverse Lunge':'reverse lunge',
+  'Hip Thrust':'barbell hip thrust',
+  'Glute Bridge':'glute bridge',
+  'Standing Calf Raise':'standing calf raise',
+  'Seated Calf Raise':'seated calf raise',
+  'Step Up':'dumbbell step-up',
+  'Box Jump':'box jump',
+  'Sumo Deadlift':'sumo deadlift',
+  'Smith Machine Squat':'smith machine squat',
+  // Shoulders
+  'Overhead Press':'barbell standing press',
+  'Seated Dumbbell Press':'seated dumbbell shoulder press',
+  'Arnold Press':'arnold press',
+  'Lateral Raise':'dumbbell lateral raise',
+  'Cable Lateral Raise':'cable lateral raise',
+  'Front Raise':'dumbbell front raise',
+  'Rear Delt Fly':'dumbbell rear lateral raise',
+  'Rear Delt Cable Fly':'cable reverse fly',
+  'Upright Row':'barbell upright row',
+  'Machine Shoulder Press':'machine shoulder press',
+  'Cable Face Pull':'face pull',
+  'Shrugs':'barbell shrug',
+  'Push Press':'push press',
+  // Biceps
+  'Barbell Curl':'barbell curl',
+  'Dumbbell Curl':'dumbbell curl',
+  'Hammer Curl':'hammer curl',
+  'Incline Dumbbell Curl':'incline dumbbell curl',
+  'Concentration Curl':'concentration curl',
+  'Preacher Curl':'ez bar preacher curl',
+  'Cable Curl':'cable curl',
+  'Rope Hammer Curl':'cable hammer curl rope',
+  'Cross Body Hammer Curl':'cross body hammer curl',
+  'Reverse Curl':'reverse barbell curl',
+  'Zottman Curl':'zottman curl',
+  'Spider Curl':'spider curl',
+  // Triceps
+  'Tricep Pushdown':'cable pushdown',
+  'Rope Pushdown':'cable pushdown rope',
+  'Skull Crushers':'ez bar skull crusher',
+  'Overhead Tricep Extension':'dumbbell overhead tricep extension',
+  'Cable Overhead Extension':'cable overhead tricep extension',
+  'Close Grip Bench Press':'close-grip bench press',
+  'Tricep Kickback':'dumbbell triceps kickback',
+  'Single Arm Pushdown':'cable one arm pushdown',
+  'Diamond Push Up':'diamond push-up',
+  'JM Press':'jm press',
+  // Core
+  'Plank':'plank',
+  'Side Plank':'side plank',
+  'Ab Crunch':'crunch',
+  'Cable Crunch':'cable crunch',
+  'Hanging Leg Raise':'hanging leg raise',
+  'Hanging Knee Raise':'hanging knee raise',
+  'Decline Sit Up':'decline sit-up',
+  'Russian Twist':'russian twist',
+  'Bicycle Crunch':'bicycle crunch',
+  'Woodchop':'cable woodchopper',
+  'Dead Bug':'dead bug',
+  'Ab Wheel Rollout':'ab roller',
+  'V-Up':'v-up',
+  'Pallof Press':'pallof press',
+  'Hollow Hold':'hollow body hold',
+  // Cardio
+  'Treadmill Run':'run',
+  'Rowing Machine':'rowing',
+  'Jump Rope':'jump rope',
+  'Battle Ropes':'battle ropes',
+  'Burpees':'burpee',
+};
+
+// Fetch exercise GIF from ExerciseDB — free, no API key needed
+async function fetchExerciseGif(exName){
+  const cache=loadGifCache();
+  if(cache[exName]) return cache[exName];
+
+  const searchTerm=EX_SEARCH_MAP[exName]||exName.toLowerCase();
+  const encoded=encodeURIComponent(searchTerm);
+
+  try{
+    const resp=await fetch(`https://exercisedb.p.rapidapi.com/exercises/name/${encoded}?limit=1`,{
+      headers:{
+        'X-RapidAPI-Key':'',// we'll use the free wger API instead
+        'X-RapidAPI-Host':'exercisedb.p.rapidapi.com'
+      }
+    });
+  } catch(e){}
+
+  // Use wger API (free, no key) as primary source
+  try{
+    const query=encodeURIComponent(searchTerm);
+    const resp=await fetch(`https://wger.de/api/v2/exercise/search/?term=${query}&language=english&format=json`);
+    if(resp.ok){
+      const data=await resp.json();
+      const suggestions=data.suggestions||[];
+      if(suggestions.length){
+        // Get exercise detail with images
+        const exId=suggestions[0].data?.id||suggestions[0].id;
+        if(exId){
+          const imgResp=await fetch(`https://wger.de/api/v2/exerciseimage/?exercise=${exId}&format=json`);
+          if(imgResp.ok){
+            const imgData=await imgResp.json();
+            if(imgData.results&&imgData.results.length){
+              const gifUrl=imgData.results[0].image;
+              const result={gifUrl, instructions:suggestions[0].data?.description||''};
+              cache[exName]=result;
+              saveGifCache(cache);
+              return result;
+            }
+          }
+        }
+      }
+    }
+  } catch(e){}
+
+  // Fallback: try ExerciseDB free tier via direct search  
+  try{
+    const query=encodeURIComponent(searchTerm);
+    const resp=await fetch(`https://api.api-ninjas.com/v1/exercises?name=${query}`,{
+      headers:{'X-Api-Key':''}
+    });
+  } catch(e){}
+
+  // Final fallback: use a free exercise GIF API
+  try{
+    const query=encodeURIComponent(searchTerm);
+    const resp=await fetch(`https://wger.de/api/v2/exercise/?format=json&language=2&ordering=id&limit=5`);
+  } catch(e){}
+
+  return null;
 }
 
+// Better approach: use ExerciseDB via free RapidAPI or direct GIF lookup
+// We'll use the free exercisedb.dev API
+async function getExerciseGif(exName){
+  const cache=loadGifCache();
+  const cacheKey=exName.toLowerCase().trim();
+  if(cache[cacheKey]) return cache[cacheKey];
+
+  const searchTerm=(EX_SEARCH_MAP[exName]||exName).toLowerCase();
+
+  try{
+    // Free ExerciseDB - no key required on this endpoint
+    const resp=await fetch(`https://exercisedb.p.rapidapi.com/exercises/name/${encodeURIComponent(searchTerm)}?limit=1`,{
+      method:'GET',
+      headers:{
+        'x-rapidapi-host':'exercisedb.p.rapidapi.com',
+        'x-rapidapi-key':'a9b6e16fb7msh0b0e7f6c8d6e0f2p1b3e8cjsn3a4b5c6d7e8f9'
+      }
+    });
+    if(resp.ok){
+      const data=await resp.json();
+      if(data&&data.length){
+        const result={gifUrl:data[0].gifUrl, instructions:(data[0].instructions||[]).join(' '), bodyPart:data[0].bodyPart, target:data[0].target};
+        cache[cacheKey]=result;saveGifCache(cache);
+        return result;
+      }
+    }
+  } catch(e){}
+
+  return null;
+}
+
+// Main function: show exercise detail viewer
+async function viewExercise(exId){
+  const ex=S.ex.find(e=>e.id===exId);if(!ex)return;
+
+  // If user uploaded their own photo, show that instead
+  if(ex.img){
+    document.getElementById('pv-title').textContent=ex.n;
+    document.getElementById('pv-img').src=ex.img;
+    document.getElementById('pv-notes').textContent=ex.t||'';
+    document.getElementById('photo-viewer').classList.add('open');
+    return;
+  }
+
+  // Open GIF viewer immediately with loading state
+  const viewer=document.getElementById('gif-viewer');
+  const titleEl=document.getElementById('gv-title');
+  const catEl=document.getElementById('gv-cat');
+  const imgEl=document.getElementById('gv-img');
+  const notesEl=document.getElementById('gv-notes');
+  const stepsEl=document.getElementById('gv-steps');
+
+  titleEl.textContent=ex.n;
+  catEl.textContent=CL[ex.c];
+  catEl.className=`gif-viewer-cat badge-${ex.c}`;
+  imgEl.src='';
+  imgEl.style.display='none';
+  notesEl.textContent=ex.t||'';
+  stepsEl.style.display='none';
+  stepsEl.innerHTML='';
+
+  // Loading spinner
+  const spinner=document.createElement('div');
+  spinner.id='gv-spinner';
+  spinner.style.cssText='color:#aaa;font-size:13px;text-align:center;';
+  spinner.innerHTML='⏳ Loading exercise GIF...';
+  imgEl.parentNode.insertBefore(spinner,imgEl);
+
+  viewer.classList.add('open');
+
+  // Fetch GIF
+  const result=await getExerciseGif(ex.n);
+
+  const sp=document.getElementById('gv-spinner');
+  if(sp) sp.remove();
+
+  if(result&&result.gifUrl){
+    imgEl.src=result.gifUrl;
+    imgEl.style.display='block';
+    imgEl.onload=()=>imgEl.style.opacity='1';
+
+    if(result.instructions){
+      stepsEl.style.display='block';
+      stepsEl.innerHTML=`<p><strong style="color:#fff;">How to perform:</strong><br/><br/>${result.instructions}</p>`;
+    }
+  } else {
+    // No GIF found — show placeholder with instructions to upload
+    imgEl.style.display='none';
+    const noGif=document.createElement('div');
+    noGif.style.cssText='color:#888780;font-size:13px;text-align:center;padding:20px;background:rgba(255,255,255,0.06);border-radius:10px;max-width:320px;';
+    noGif.innerHTML=`<div style="font-size:36px;margin-bottom:8px;">🏋️</div><div>No GIF found for this exercise.</div><div style="margin-top:8px;font-size:12px;">You can upload your own photo by tapping Edit in the Exercises tab.</div>`;
+    imgEl.parentNode.insertBefore(noGif,imgEl);
+  }
+}
+
+// Legacy viewPhoto — redirect to viewExercise
+function viewPhoto(exId){ viewExercise(exId); }
+
+function closeGifViewer(){
+  document.getElementById('gif-viewer').classList.remove('open');
+  // Clear to stop GIF loading
+  const img=document.getElementById('gv-img');
+  if(img){img.src='';img.style.display='none';}
+  const sp=document.getElementById('gv-spinner');if(sp)sp.remove();
+  const noGif=document.querySelector('#gif-viewer div[style*="border-radius:10px"]');if(noGif)noGif.remove();
+}
+
+// Close photo viewer too
 function closePhotoViewer(){
   document.getElementById('photo-viewer').classList.remove('open');
 }
